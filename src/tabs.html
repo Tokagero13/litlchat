@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Вкладки</title>
+    <style>
+      :root {
+        --bar: #f1f2f5;
+        --fg: #23232a;
+        --muted: #6e6e78;
+        --line: #dededf;
+        --tab: #ffffff;
+        --accent: #3b6ef5;
+        --hover: #e4e5ea;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bar: #1b1b20;
+          --fg: #e6e6ec;
+          --muted: #93939f;
+          --line: #2f2f38;
+          --tab: #2b2b34;
+          --accent: #7ea0ff;
+          --hover: #33333d;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; overflow: hidden; }
+      body {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 5px;
+        background: var(--bar);
+        border-bottom: 1px solid var(--line);
+        font: 12px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: var(--fg);
+        -webkit-user-select: none;
+        user-select: none;
+        cursor: default;
+      }
+      /* Вкладкам — их естественная ширина; всё лишнее место забирает
+         область перетаскивания справа, иначе они делили бы полосу пополам
+         и названия схлопывались бы в многоточия. */
+      #tabs {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        flex: 0 1 auto;
+        min-width: 0;
+        height: 100%;
+        padding: 4px 0;
+      }
+      .tab {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex: 0 1 auto;
+        max-width: 150px;
+        min-width: 0;
+        height: 100%;
+        padding: 0 7px;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .tab:hover { background: var(--hover); }
+      .tab.active {
+        background: var(--tab);
+        border-color: var(--line);
+        color: var(--fg);
+        font-weight: 600;
+      }
+      .tab .name { overflow: hidden; text-overflow: ellipsis; }
+      .tab .x {
+        flex: none;
+        width: 14px; height: 14px;
+        border-radius: 4px;
+        line-height: 13px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--muted);
+        visibility: hidden;
+      }
+      .tab:hover .x, .tab.active .x { visibility: visible; }
+      .tab .x:hover { background: var(--line); color: var(--fg); }
+
+      /* Пустое место полосы — «ручка» для перетаскивания окна:
+         рамки у панели нет, иначе её нечем было бы двигать. */
+      #drag { flex: 1 1 auto; height: 100%; min-width: 12px; }
+
+      /* Ошибки раньше молча глотались, и кнопка «+» выглядела нерабочей. */
+      #msg {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #c4302b;
+        padding: 0 6px;
+      }
+      @media (prefers-color-scheme: dark) { #msg { color: #ff8a84; } }
+      #msg:empty { display: none; }
+      #msg:not(:empty) + #drag { display: none; }
+
+      .tab input.rename {
+        width: 96px;
+        border: 1px solid var(--accent);
+        border-radius: 4px;
+        background: var(--bar);
+        color: var(--fg);
+        font: inherit;
+        padding: 2px 4px;
+      }
+
+      .icon {
+        flex: none;
+        width: 24px; height: 24px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+      }
+      .icon:hover:not(:disabled) { background: var(--hover); color: var(--fg); }
+      .icon:disabled { opacity: .35; cursor: default; }
+    </style>
+  </head>
+  <body>
+    <div id="tabs"></div>
+    <div id="msg"></div>
+    <div id="drag" data-tauri-drag-region></div>
+    <button class="icon" id="pin" title="Закрепить открытый чат">+</button>
+    <button class="icon" id="settings" title="Настройки">⚙</button>
+    <button class="icon" id="hide" title="Свернуть в трей">✕</button>
+
+    <script>
+      const { invoke } = window.__TAURI__.core;
+      const { listen } = window.__TAURI__.event;
+
+      const el = (id) => document.getElementById(id);
+
+      let msgTimer = null;
+      function say(text) {
+        const m = el("msg");
+        m.textContent = text || "";
+        m.title = text || "";
+        clearTimeout(msgTimer);
+        if (text) msgTimer = setTimeout(() => { m.textContent = ""; m.title = ""; }, 6000);
+      }
+
+      function tabButton(label, active, onClick, onClose, onRename) {
+        const b = document.createElement("button");
+        b.className = "tab" + (active ? " active" : "");
+        b.onclick = onClick;
+
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = label;
+        b.append(name);
+
+        if (onRename) {
+          b.ondblclick = (e) => {
+            e.stopPropagation();
+            const input = document.createElement("input");
+            input.className = "rename";
+            input.value = label;
+            const finish = (save) => {
+              if (input.parentNode !== b) return;
+              b.replaceChild(name, input);
+              if (save && input.value.trim() && input.value.trim() !== label) {
+                onRename(input.value.trim());
+              }
+            };
+            input.onkeydown = (ev) => {
+              ev.stopPropagation();
+              if (ev.key === "Enter") finish(true);
+              if (ev.key === "Escape") finish(false);
+            };
+            input.onblur = () => finish(true);
+            input.onclick = (ev) => ev.stopPropagation();
+            b.replaceChild(input, name);
+            input.focus();
+            input.select();
+          };
+        }
+
+        if (onClose) {
+          const x = document.createElement("span");
+          x.className = "x";
+          x.textContent = "✕";
+          x.title = "Открепить";
+          x.onclick = (e) => { e.stopPropagation(); onClose(); };
+          b.append(x);
+        }
+        return b;
+      }
+
+      async function render() {
+        const { pins, active, max } = await invoke("get_tabs");
+        const box = el("tabs");
+        box.innerHTML = "";
+
+        box.append(
+          tabButton("Новый чат", active === null, () => invoke("select_tab", { index: null }))
+        );
+        pins.forEach((pin, i) => {
+          box.append(
+            tabButton(
+              pin.title,
+              active === i,
+              () => invoke("select_tab", { index: i }),
+              () => invoke("unpin", { index: i }).catch(say),
+              (title) => invoke("rename_pin", { index: i, title }).catch(say)
+            )
+          );
+        });
+
+        const pinBtn = el("pin");
+        pinBtn.disabled = pins.length >= max;
+        pinBtn.title = pinBtn.disabled
+          ? `Закреплено ${max} из ${max} — освободите слот`
+          : `Закрепить открытый чат (${pins.length} из ${max}). Двойной клик по вкладке — переименовать`;
+      }
+
+      el("pin").onclick = () =>
+        invoke("pin_current").then(() => say("")).catch(say);
+      el("settings").onclick = () => invoke("open_settings");
+      el("hide").onclick = () => invoke("hide_panel");
+
+      listen("tabs-changed", render);
+      render();
+    </script>
+  </body>
+</html>

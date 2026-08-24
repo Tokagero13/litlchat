@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "tabs",
+  "description": "Полоса вкладок: собственные команды приложения плюс перетаскивание окна за пустое место полосы.",
+  "webviews": ["tabs"],
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
+}

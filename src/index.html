@@ -1,0 +1,640 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Настройки — Gemini Tray</title>
+    <style>
+      :root {
+        --bg: #f7f7f9;
+        --card: #ffffff;
+        --fg: #17171c;
+        --muted: #6d6d78;
+        --line: #e3e3e9;
+        --field: #ffffff;
+        --accent: #3b6ef5;
+        --accent-soft: #e8eeff;
+        --danger: #c4302b;
+        --ok: #1f7a4d;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .05);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #141418;
+          --card: #1e1e24;
+          --fg: #eaeaef;
+          --muted: #9494a0;
+          --line: #33333d;
+          --field: #26262e;
+          --accent: #6f95ff;
+          --accent-soft: #26304a;
+          --danger: #ff8a84;
+          --ok: #63cf94;
+          --shadow: none;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 18px 18px 84px;
+        font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: var(--fg);
+        background: var(--bg);
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      input { -webkit-user-select: text; user-select: text; }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 15px 16px;
+        margin-bottom: 12px;
+        box-shadow: var(--shadow);
+      }
+      .card > h2 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        color: var(--muted);
+        margin: 0 0 12px;
+        font-weight: 650;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+      input[type="text"], input[type="number"] {
+        width: 100%;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--field);
+        color: var(--fg);
+        font: inherit;
+      }
+      input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+      /* --- горячая клавиша --- */
+      #hotkey {
+        text-align: center;
+        font-weight: 600;
+        letter-spacing: .02em;
+        cursor: pointer;
+        padding: 11px;
+      }
+      #hotkey.capturing {
+        outline: 2px solid var(--accent);
+        outline-offset: -1px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-weight: 500;
+      }
+
+      /* --- выбор угла: макет экрана вместо выпадающего списка --- */
+      #tray-option {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        width: 100%;
+        padding: 9px 11px;
+        margin-bottom: 11px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--field);
+        color: var(--fg);
+        font: inherit;
+        cursor: pointer;
+        text-align: left;
+      }
+      #tray-option[aria-pressed="true"] {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      #tray-option .dot {
+        width: 9px; height: 9px; border-radius: 50%;
+        background: var(--line); flex: none;
+      }
+      #tray-option[aria-pressed="true"] .dot { background: var(--accent); }
+
+      .screen {
+        position: relative;
+        height: 132px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--field);
+        display: grid;
+        grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+        gap: 5px;
+        padding: 9px;
+      }
+      /* «Подставка» — чтобы прямоугольник читался как экран, а не как поле ввода. */
+      .screen::after {
+        content: "";
+        position: absolute;
+        left: 35%; right: 35%; bottom: -5px;
+        height: 3px; border-radius: 2px;
+        background: var(--line);
+      }
+      .zone { border: 0; border-radius: 6px; padding: 0; background: transparent; }
+      /* Кликабельные зоны видны всегда, иначе виджет выглядит пустой коробкой. */
+      .zone[data-a] { background: var(--line); cursor: pointer; transition: background .12s ease; }
+      .zone[data-a]:hover { background: var(--muted); }
+      .zone[data-a].on { background: var(--accent); }
+      .zone.spacer { pointer-events: none; }
+
+      /* --- тумблер --- */
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+      }
+      .toggle input { position: absolute; opacity: 0; pointer-events: none; }
+      .track {
+        flex: none;
+        width: 40px; height: 23px;
+        border-radius: 999px;
+        background: var(--line);
+        transition: background .16s ease;
+        position: relative;
+      }
+      .track::after {
+        content: "";
+        position: absolute;
+        top: 2.5px; left: 2.5px;
+        width: 18px; height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0,0,0,.28);
+        transition: transform .16s ease;
+      }
+      .toggle input:checked + .track { background: var(--accent); }
+      .toggle input:checked + .track::after { transform: translateX(17px); }
+      .toggle input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .toggle .label { flex: 1; }
+
+      /* --- размер --- */
+      .size-row { display: flex; align-items: center; gap: 11px; margin-bottom: 9px; }
+      .size-row label { width: 62px; color: var(--muted); font-size: 12px; flex: none; }
+      .size-row input[type="range"] { flex: 1; accent-color: var(--accent); min-width: 0; }
+      .size-row input[type="number"] { width: 74px; flex: none; text-align: center; }
+      .presets { display: flex; gap: 7px; margin-top: 4px; }
+      .presets button { flex: 1; }
+
+      /* --- закладки --- */
+      .pin {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px;
+        margin-bottom: 7px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--field);
+      }
+      .pin.dragging { border-color: var(--accent); background: var(--accent-soft); }
+      .grip {
+        flex: none;
+        cursor: grab;
+        color: var(--muted);
+        padding: 2px 3px;
+        line-height: 1;
+        font-size: 15px;
+      }
+      .grip:active { cursor: grabbing; }
+      .pin .fields { flex: 1; display: grid; gap: 5px; min-width: 0; }
+      .pin .fields input { font-size: 13px; padding: 6px 8px; }
+      .pin .fields input.url { color: var(--muted); font-size: 12px; }
+      .empty { color: var(--muted); font-size: 12px; padding: 3px 0 9px; }
+
+      button {
+        padding: 8px 13px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--field);
+        color: var(--fg);
+        font: inherit;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      button:hover:not(:disabled) { border-color: var(--accent); }
+      button:disabled { opacity: .45; cursor: default; }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      button.wide { width: 100%; }
+      button.mini { padding: 6px 9px; font-size: 12px; }
+
+      footer {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 18px;
+        background: var(--card);
+        border-top: 1px solid var(--line);
+      }
+      #status { flex: 1; font-size: 12px; min-height: 1.4em; }
+      #status.err { color: var(--danger); }
+      #status.ok { color: var(--ok); }
+      details > summary { cursor: pointer; color: var(--muted); font-size: 12px; list-style: none; }
+      details > summary::before { content: "▸ "; }
+      details[open] > summary::before { content: "▾ "; }
+      details[open] > summary { margin-bottom: 12px; }
+      details label { display: block; margin-bottom: 11px; }
+      details label span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Горячая клавиша</h2>
+      <input type="text" id="hotkey" readonly value="—" />
+      <div class="hint">
+        Нажмите на поле и наберите комбинацию. Нужен хотя бы один модификатор —
+        Ctrl, Alt, Shift или Win.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Где открывать панель</h2>
+      <button type="button" id="tray-option" aria-pressed="false">
+        <span class="dot"></span>У иконки в трее
+      </button>
+      <div class="screen" id="screen">
+        <button class="zone" type="button" data-a="top-left" title="Слева сверху"></button>
+        <span class="zone spacer"></span>
+        <button class="zone" type="button" data-a="top-right" title="Справа сверху"></button>
+        <span class="zone spacer"></span>
+        <button class="zone" type="button" data-a="center" title="По центру"></button>
+        <span class="zone spacer"></span>
+        <button class="zone" type="button" data-a="bottom-left" title="Слева снизу"></button>
+        <span class="zone spacer"></span>
+        <button class="zone" type="button" data-a="bottom-right" title="Справа снизу"></button>
+      </div>
+      <div class="hint" id="anchor-hint"></div>
+      <div class="hint">Панель показывается сразу — видно, как она ляжет.</div>
+    </div>
+
+    <div class="card">
+      <h2>Размер панели</h2>
+      <div class="size-row">
+        <label for="width-range">Ширина</label>
+        <input type="range" id="width-range" min="320" max="1200" step="10" />
+        <input type="number" id="width" min="320" max="2400" step="10" />
+      </div>
+      <div class="size-row">
+        <label for="height-range">Высота</label>
+        <input type="range" id="height-range" min="300" max="1400" step="10" />
+        <input type="number" id="height" min="300" max="2000" step="10" />
+      </div>
+      <div class="presets">
+        <button type="button" class="mini" data-size="380x560">Компактно</button>
+        <button type="button" class="mini" data-size="460x680">Обычно</button>
+        <button type="button" class="mini" data-size="620x860">Крупно</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="toggle">
+        <input type="checkbox" id="pinned" />
+        <span class="track"></span>
+        <span class="label">
+          Не прятать при потере фокуса
+          <div class="hint">Панель останется открытой, пока вы не свернёте её сами.</div>
+        </span>
+      </label>
+    </div>
+
+    <div class="card">
+      <h2>Закреплённые чаты <span id="pin-count"></span></h2>
+      <div id="pins"></div>
+      <button id="pin-current" type="button" class="wide">Закрепить открытый сейчас чат</button>
+      <div class="hint">
+        Закладки появляются в меню трея в том же порядке — перетаскивайте за ⠿.
+      </div>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>Дополнительно</summary>
+        <label><span>Стартовый адрес</span><input type="text" id="url" /></label>
+        <label>
+          <span>User-Agent</span>
+          <input type="text" id="user-agent" placeholder="пусто — стандартный для движка" />
+          <div class="hint">
+            Меняйте только если Google не пускает в аккаунт. Применяется после
+            перезапуска приложения.
+          </div>
+        </label>
+      </details>
+    </div>
+
+    <footer>
+      <span id="status"></span>
+      <button type="button" id="cancel">Закрыть</button>
+      <button type="button" id="save" class="primary">Сохранить</button>
+    </footer>
+
+    <script>
+      const { invoke } = window.__TAURI__.core;
+      const el = (id) => document.getElementById(id);
+
+      let settings = null;
+      let maxPins = 3;
+      let anchor = "tray";
+
+      const MODIFIER_CODES = new Set([
+        "ControlLeft", "ControlRight", "ShiftLeft", "ShiftRight",
+        "AltLeft", "AltRight", "MetaLeft", "MetaRight",
+      ]);
+
+      // «Ctrl+Shift+KeyG» — синтаксис парсера в Rust, показывать его не стоит.
+      function pretty(hotkey) {
+        return (hotkey || "")
+          .split("+")
+          .map((t) => {
+            const low = t.toLowerCase();
+            if (["cmdorctrl", "commandorcontrol", "commandorctrl", "cmdorcontrol", "control"].includes(low)) return "Ctrl";
+            if (["super", "cmd", "command"].includes(low)) return "Win";
+            if (low === "option") return "Alt";
+            return t.replace(/^(Key|Digit|Arrow)/, "");
+          })
+          .join(" + ");
+      }
+
+      function status(text, kind) {
+        const s = el("status");
+        s.textContent = text || "";
+        s.className = kind || "";
+      }
+
+      /* ---------- угол привязки ---------- */
+      function setAnchor(value) {
+        anchor = value;
+        el("tray-option").setAttribute("aria-pressed", String(value === "tray"));
+        document.querySelectorAll(".zone[data-a]").forEach((z) => {
+          z.classList.toggle("on", z.dataset.a === value);
+        });
+        el("anchor-hint").textContent =
+          value === "tray"
+            ? "Работает в Windows. В Linux координаты иконки в трее недоступны — там это то же, что «справа снизу»."
+            : "";
+      }
+      el("tray-option").onclick = () => { setAnchor("tray"); preview(true); };
+      document.querySelectorAll(".zone[data-a]").forEach((z) => {
+        z.onclick = () => { setAnchor(z.dataset.a); preview(true); };
+      });
+
+      /* ---------- живой предпросмотр ----------
+         Панель показывается с ещё не сохранёнными значениями, без забора
+         фокуса: иначе ползунок уезжал бы из-под курсора. */
+      let previewTimer = null;
+      let previewReady = false;
+      function preview(immediate) {
+        if (!previewReady) return;
+        clearTimeout(previewTimer);
+        const fire = () =>
+          invoke("preview_panel", {
+            anchor,
+            width: Number(el("width").value),
+            height: Number(el("height").value),
+          }).catch(() => {});
+        if (immediate) fire();
+        else previewTimer = setTimeout(fire, 110);
+      }
+
+      /* ---------- размер ---------- */
+      function linkSize(numId, rangeId) {
+        const num = el(numId);
+        const range = el(rangeId);
+        num.oninput = () => { range.value = num.value; preview(false); };
+        range.oninput = () => { num.value = range.value; preview(false); };
+      }
+      linkSize("width", "width-range");
+      linkSize("height", "height-range");
+
+      function setSize(w, h) {
+        el("width").value = w;
+        el("width-range").value = w;
+        el("height").value = h;
+        el("height-range").value = h;
+      }
+      document.querySelectorAll("[data-size]").forEach((b) => {
+        b.onclick = () => {
+          const [w, h] = b.dataset.size.split("x").map(Number);
+          setSize(w, h);
+          preview(true);
+        };
+      });
+
+      /* ---------- закладки ---------- */
+      /* Перетаскивание на pointer-событиях, а не на HTML5 drag-and-drop:
+         последний в WebKitGTK ведёт себя непредсказуемо, а pointer — те же
+         примитивы, что и обычный клик, и работают одинаково на обеих ОС. */
+      let drag = null;
+
+      function rowUnder(y) {
+        return [...el("pins").children].find((r) => {
+          if (r === drag.el || !r.classList.contains("pin")) return false;
+          const b = r.getBoundingClientRect();
+          return y >= b.top && y <= b.bottom;
+        });
+      }
+
+      function onDragMove(e) {
+        if (!drag) return;
+        const target = rowUnder(e.clientY);
+        if (!target) return;
+        const b = target.getBoundingClientRect();
+        const before = e.clientY < b.top + b.height / 2;
+        el("pins").insertBefore(drag.el, before ? target : target.nextSibling);
+      }
+
+      function onDragEnd() {
+        if (!drag) return;
+        drag.el.classList.remove("dragging");
+        document.removeEventListener("pointermove", onDragMove);
+        document.removeEventListener("pointerup", onDragEnd);
+
+        // Порядок берём из DOM: он менялся по ходу перетаскивания.
+        const order = [...el("pins").children]
+          .filter((r) => r.classList.contains("pin"))
+          .map((r) => Number(r.dataset.i));
+        const before = settings.pins.slice();
+        settings.pins = order.map((i) => before[i]);
+
+        const moved = order.some((v, i) => v !== i);
+        drag = null;
+        renderPins();
+        if (moved) status("порядок изменён, не забудьте сохранить", "ok");
+      }
+
+      function startDrag(e, row) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        drag = { el: row };
+        row.classList.add("dragging");
+        document.addEventListener("pointermove", onDragMove);
+        document.addEventListener("pointerup", onDragEnd);
+      }
+
+      function renderPins() {
+        const box = el("pins");
+        box.innerHTML = "";
+
+        if (!settings.pins.length) {
+          const empty = document.createElement("div");
+          empty.className = "empty";
+          empty.textContent = "Пока ничего не закреплено.";
+          box.append(empty);
+        }
+
+        settings.pins.forEach((pin, i) => {
+          const row = document.createElement("div");
+          row.className = "pin";
+          row.dataset.i = i;
+
+          const grip = document.createElement("span");
+          grip.className = "grip";
+          grip.textContent = "⠿";
+          grip.title = "Перетащите, чтобы поменять порядок";
+
+          const fields = document.createElement("div");
+          fields.className = "fields";
+
+          const title = document.createElement("input");
+          title.type = "text";
+          title.value = pin.title;
+          title.placeholder = "Название в меню трея";
+          title.oninput = () => { settings.pins[i].title = title.value; };
+          // Перетаскивание строки не должно мешать выделять текст в поле.
+          title.onmousedown = (e) => e.stopPropagation();
+
+          const url = document.createElement("input");
+          url.type = "text";
+          url.className = "url";
+          url.value = pin.url;
+          url.placeholder = "https://gemini.google.com/app/…";
+          url.oninput = () => { settings.pins[i].url = url.value; };
+          url.onmousedown = (e) => e.stopPropagation();
+
+          fields.append(title, url);
+
+          const grab = document.createElement("button");
+          grab.type = "button";
+          grab.className = "mini";
+          grab.textContent = "Текущий";
+          grab.title = "Подставить адрес чата, открытого в панели";
+          grab.onclick = async () => {
+            const current = await invoke("get_current_url");
+            if (!current) return status("панель ещё не открыта", "err");
+            settings.pins[i].url = current;
+            url.value = current;
+            status("адрес подставлен, не забудьте сохранить", "ok");
+          };
+
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "mini";
+          del.textContent = "✕";
+          del.title = "Убрать закладку";
+          del.onclick = () => { settings.pins.splice(i, 1); renderPins(); };
+
+          grip.onpointerdown = (e) => startDrag(e, row);
+
+          row.append(grip, fields, grab, del);
+          box.append(row);
+        });
+
+        el("pin-count").textContent = `${settings.pins.length} из ${maxPins}`;
+        el("pin-current").disabled = settings.pins.length >= maxPins;
+      }
+
+      /* ---------- горячая клавиша ---------- */
+      el("hotkey").onfocus = () => {
+        el("hotkey").classList.add("capturing");
+        el("hotkey").value = "нажмите комбинацию…";
+      };
+      el("hotkey").onblur = () => {
+        el("hotkey").classList.remove("capturing");
+        el("hotkey").value = pretty(el("hotkey").dataset.raw);
+      };
+      el("hotkey").onkeydown = (e) => {
+        e.preventDefault();
+        if (MODIFIER_CODES.has(e.code)) return;
+        const mods = [];
+        if (e.ctrlKey) mods.push("Ctrl");
+        if (e.altKey) mods.push("Alt");
+        if (e.shiftKey) mods.push("Shift");
+        if (e.metaKey) mods.push("Super");
+        if (!mods.length) {
+          return status("нужен хотя бы один модификатор: Ctrl, Alt, Shift или Win", "err");
+        }
+        const raw = [...mods, e.code].join("+");
+        el("hotkey").dataset.raw = raw;
+        el("hotkey").value = pretty(raw);
+        status("");
+        el("hotkey").blur();
+      };
+
+      /* ---------- отрисовка и сохранение ---------- */
+      function render() {
+        el("hotkey").value = pretty(settings.hotkey);
+        el("hotkey").dataset.raw = settings.hotkey;
+        setAnchor(settings.anchor);
+        setSize(Math.round(settings.width), Math.round(settings.height));
+        el("pinned").checked = settings.pinned;
+        el("url").value = settings.url;
+        el("user-agent").value = settings.user_agent;
+        renderPins();
+      }
+
+      el("pin-current").onclick = async () => {
+        try {
+          settings = await invoke("pin_current");
+          renderPins();
+          status("чат закреплён", "ok");
+        } catch (e) {
+          status(String(e), "err");
+        }
+      };
+
+      el("save").onclick = async () => {
+        settings.hotkey = el("hotkey").dataset.raw;
+        settings.anchor = anchor;
+        settings.width = Number(el("width").value);
+        settings.height = Number(el("height").value);
+        settings.pinned = el("pinned").checked;
+        settings.url = el("url").value;
+        settings.user_agent = el("user-agent").value;
+        try {
+          const warning = await invoke("save_settings", { settings });
+          settings = await invoke("get_settings");
+          render();
+          if (warning) status("сохранено, но " + warning, "err");
+          else status("сохранено", "ok");
+        } catch (e) {
+          status(String(e), "err");
+        }
+      };
+
+      el("cancel").onclick = () => window.__TAURI__.window.getCurrentWindow().close();
+
+      // Закладки можно менять и из полосы вкладок. Без этого «Сохранить»
+      // в настройках затирало бы всё, что там успели закрепить или снять.
+      window.__TAURI__.event.listen("tabs-changed", async () => {
+        const fresh = await invoke("get_settings");
+        settings.pins = fresh.pins;
+        renderPins();
+      });
+
+      (async () => {
+        maxPins = await invoke("max_pins");
+        settings = await invoke("get_settings");
+        render();
+        previewReady = true;
+      })();
+    </script>
+  </body>
+</html>

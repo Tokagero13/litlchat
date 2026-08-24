@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4b7bff"/>
+      <stop offset="0.55" stop-color="#5566f0"/>
+      <stop offset="1" stop-color="#8a4ae8"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e4ecff"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1024" height="1024" rx="228" ry="228" fill="url(#bg)"/>
+  <!-- Крупная искра: единственная фигура, чтобы читалась в трее на 16 px. -->
+  <path fill="url(#spark)"
+        d="M 512 132
+           C 544 356, 668 480, 892 512
+           C 668 544, 544 668, 512 892
+           C 480 668, 356 544, 132 512
+           C 356 480, 480 356, 512 132 Z"/>
+</svg>

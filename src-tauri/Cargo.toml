@@ -1,0 +1,37 @@
+[package]
+name = "gemini-tray"
+version = "0.1.0"
+description = "Gemini в системном трее — микро-браузер для быстрых вопросов"
+authors = ["tokagero"]
+edition = "2021"
+
+[lib]
+# Суффикс `_lib` нужен, чтобы имя библиотеки не конфликтовало с именем бинарника на Windows.
+name = "gemini_tray_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# unstable — ради нескольких вебвью в одном окне: полоса вкладок
+# отдельным вебвью поверх страницы Gemini, а не встроенная в неё.
+tauri = { version = "2", features = ["tray-icon", "unstable"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-global-shortcut = "2"
+
+# На Linux дочерние вебвью живут в GtkBox, и заданные границы там не работают —
+# высоту полосы вкладок приходится задавать средствами самого GTK.
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
+gtk = "0.18"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

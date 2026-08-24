@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "gemini-remote",
+  "description": "Страница Gemini получает ровно одно право — спрятать панель по Esc. Больше ей ничего не доступно.",
+  "webviews": ["chat"],
+  "local": false,
+  "remote": {
+    "urls": ["https://gemini.google.com/*"]
+  },
+  "permissions": ["core:window:allow-hide"]
+}
